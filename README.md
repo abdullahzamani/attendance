@@ -89,6 +89,12 @@ If `composer setup` reports that `ext-intl` is missing, your PHP was built witho
   Then put `C:\php` at the **top** of your user `Path` environment variable, reopen PowerShell and
   run `php -m` to confirm `intl` is listed.
 
+If `php --ini` still shows a path containing `herd-lite`, Windows is still finding the old PHP
+first. Open *Edit environment variables for your account* → **Path**, delete the
+`...\.config\herd-lite\bin` entry, then open a new PowerShell window. (With the official PHP
+build, also install Composer with [Composer-Setup.exe](https://getcomposer.org/download/), since
+Herd Lite's Composer is removed with it.)
+
 Then run `composer setup` again in the project folder.
 
 ### Time zone
