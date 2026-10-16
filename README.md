@@ -24,7 +24,7 @@ Built with **Laravel 13**, **Filament 5** (admin panel) and **Livewire** (live d
 
 ## Getting started
 
-Requirements: PHP 8.3+ (with `intl`, `pdo_sqlite` or `pdo_mysql`), Composer, Node.js 20+.
+Requirements: PHP 8.3+ (with `intl`, `pdo_sqlite` or `pdo_mysql`) and Composer. No Node.js build step is needed.
 
 ```sh
 git clone https://github.com/abdullahzamani/attendance.git
@@ -93,7 +93,7 @@ A staff member is **out** when they have a movement with no `in_at`.
 ```sh
 php artisan test        # run the test suite
 vendor/bin/pint         # format code
-composer dev            # server, queue, logs and Vite together
+composer dev            # start the local server
 ```
 
 Tests run on every push and pull request via GitHub Actions (`.github/workflows/tests.yml`).
