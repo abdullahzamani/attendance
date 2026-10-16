@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Architecture overview of the Staff Movement System.
+  Keep this page in step with the code: when models, migrations, actions, policies,
+  routes or screens change, update the matching figure or table below.
+  Open it directly in a browser; it needs no build step.
+-->
+<title>Staff Movement Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: one reading column of figures, top-down from who uses it to where data lives;
+     the in/out board's green / red / amber is the only colour language besides the teal accent. */
+  :root {
+    --bg: #f4f7f6;
+    --panel: #ffffff;
+    --fg: #15201f;
+    --muted: #586a67;
+    --line: #c5d2cf;
+    --accent: #0f766e;
+    --accent-soft: #dcefeb;
+    --in: #15803d;
+    --out: #dc2626;
+    --late: #c26a00;
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1514; --panel: #142120; --fg: #e3ecea; --muted: #93a6a2; --line: #2d3d3b;
+      --accent: #2dd4bf; --accent-soft: #113430; --in: #4ade80; --out: #f87171; --late: #fbbf24;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1514; --panel: #142120; --fg: #e3ecea; --muted: #93a6a2; --line: #2d3d3b;
+    --accent: #2dd4bf; --accent-soft: #113430; --in: #4ade80; --out: #f87171; --late: #fbbf24;
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.55 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 64px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 56px; }
+  h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.05; }
+  h2 { font-size: 1.45rem; font-weight: 700; }
+  p { margin: 0; max-width: 65ch; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  .eyebrow {
+    font: 600 0.78rem/1 var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--accent);
+  }
+  .muted { color: var(--muted); }
+
+  header.hero { display: grid; gap: 18px; }
+  .stack { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .stack li {
+    font: 600 0.82rem/1 var(--mono); padding: 8px 12px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel);
+  }
+  .stack li b { color: var(--accent); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 0.92rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  section { display: grid; gap: 16px; }
+  .sec-head { display: grid; gap: 6px; }
+  figure { margin: 0; display: grid; gap: 12px; }
+  .canvas {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; overflow-x: auto;
+  }
+  .canvas svg { display: block; width: 100%; height: auto; min-width: 680px; color: var(--fg); }
+  figcaption { font-size: 0.95rem; color: var(--muted); max-width: 75ch; }
+
+  /* SVG vocabulary, all from tokens */
+  svg text { fill: currentColor; font-family: var(--body); font-size: 13px; }
+  svg .t-title { font-family: var(--display); font-weight: 700; font-size: 14px; }
+  svg .t-mono { font-family: var(--mono); font-size: 11.5px; }
+  svg .t-small { font-size: 11.5px; fill: var(--muted); }
+  svg .t-accent { fill: var(--accent); font-weight: 600; }
+  svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  svg .box-soft { fill: var(--bg); stroke: var(--line); stroke-width: 1.2; }
+  svg .gate { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  svg .edge-accent { stroke: var(--accent); stroke-width: 2.2; fill: none; }
+  svg .edge-poll { stroke: var(--muted); stroke-width: 1.5; fill: none; stroke-dasharray: 4 4; }
+  svg .head { fill: var(--muted); }
+  svg .head-accent { fill: var(--accent); }
+  svg .row-hi { fill: var(--accent-soft); }
+  svg .st-in { fill: var(--panel); stroke: var(--in); stroke-width: 2; }
+  svg .st-out { fill: var(--panel); stroke: var(--out); stroke-width: 2; }
+  svg .st-late { fill: var(--panel); stroke: var(--late); stroke-width: 2; }
+  svg .c-in { fill: var(--in); } svg .c-out { fill: var(--out); } svg .c-late { fill: var(--late); }
+
+  /* Check-out sequence */
+  ol.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
+  ol.flow li {
+    counter-increment: step; display: grid; grid-template-columns: 44px 1fr; gap: 14px;
+    padding: 14px 0; border-top: 1px solid var(--line);
+  }
+  ol.flow li:first-child { border-top: 0; }
+  ol.flow li::before {
+    content: counter(step); font: 700 1rem/1 var(--display); color: var(--accent);
+    width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--accent);
+    display: grid; place-items: center;
+  }
+  ol.flow li > div { min-width: 0; display: grid; gap: 2px; }
+  ol.flow strong { font-weight: 600; }
+  .where { font: 0.8rem/1.3 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+
+  /* Permissions */
+  .tbl-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 0.95rem; }
+  th, td { padding: 11px 16px; text-align: left; border-top: 1px solid var(--line); }
+  thead th { border-top: 0; font: 600 0.78rem/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  td.c, th.c { text-align: center; width: 110px; }
+  .yes { color: var(--in); font-weight: 600; }
+  .no { color: var(--muted); }
+
+  /* Code map */
+  .map { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 32px; }
+  .map dl { margin: 0; }
+  .map div.item { display: grid; gap: 2px; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+  .map dt { font: 600 0.86rem/1.35 var(--mono); color: var(--accent); overflow-wrap: anywhere; }
+  .map dd { margin: 0; font-size: 0.95rem; }
+
+  footer { font-size: 0.9rem; color: var(--muted); }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 520px) { body { font-size: 16px; } .wrap { gap: 44px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">abdullahzamani/attendance · architecture</span>
+    <h1>Staff Movement System</h1>
+    <p>Records when staff leave the office and come back, shows who is out on a wall board, and turns the log into daily, monthly and yearly reports. It is one Laravel application: an admin panel and a display board on top of the same models and database.</p>
+    <ul class="stack" aria-label="Technology stack">
+      <li><b>PHP</b> 8.3+</li>
+      <li><b>Laravel</b> 13</li>
+      <li><b>Filament</b> 5 admin panel</li>
+      <li><b>Livewire</b> 4 board</li>
+      <li><b>SQLite</b> or MySQL</li>
+      <li><b>PHPUnit</b> + GitHub Actions</li>
+    </ul>
+    <div class="legend" aria-label="Status colours used throughout">
+      <span><i class="dot" style="background:var(--in)"></i>In office</span>
+      <span><i class="dot" style="background:var(--out)"></i>Out</span>
+      <span><i class="dot" style="background:var(--late)"></i>Overdue</span>
+      <span><i class="dot" style="background:var(--accent)"></i>Check-out / check-in path</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">System</span>
+      <h2>From the browser to the database</h2>
+    </div>
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 960 640" role="img" aria-label="Admins and clerks use the Filament panel at /admin and the wall TV polls the display board at /board; both pass the login gate, the panel authorizes through policies and records movements through the CheckOutStaff and CheckInStaff actions, and everything reads and writes the database through Eloquent models.">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head-accent" d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+
+          <!-- Row 1: people and screens -->
+          <rect class="box" x="60" y="20" width="180" height="54" rx="10"/>
+          <text class="t-title" x="150" y="44" text-anchor="middle">Administrator</text>
+          <text class="t-small" x="150" y="62" text-anchor="middle">manages everything</text>
+          <rect class="box" x="300" y="20" width="180" height="54" rx="10"/>
+          <text class="t-title" x="390" y="44" text-anchor="middle">Clerk</text>
+          <text class="t-small" x="390" y="62" text-anchor="middle">records movements</text>
+          <rect class="box" x="700" y="20" width="200" height="54" rx="10"/>
+          <text class="t-title" x="800" y="44" text-anchor="middle">Wall TV</text>
+          <text class="t-small" x="800" y="62" text-anchor="middle">signed-in browser</text>
+
+          <line class="edge" x1="150" y1="74" x2="150" y2="116" marker-end="url(#arr)"/>
+          <line class="edge" x1="390" y1="74" x2="390" y2="116" marker-end="url(#arr)"/>
+          <line class="edge-poll" x1="800" y1="74" x2="800" y2="116" marker-end="url(#arr)"/>
+          <text class="t-small" x="812" y="100">re-renders every 15 s</text>
+
+          <!-- Row 2: gate -->
+          <rect class="gate" x="40" y="118" width="880" height="42" rx="8"/>
+          <text x="480" y="144" text-anchor="middle"><tspan class="t-accent">Login gate</tspan>  ·  session login at /admin/login  ·  CSRF on every action  ·  guests are redirected</text>
+
+          <line class="edge" x1="340" y1="160" x2="340" y2="196" marker-end="url(#arr)"/>
+          <line class="edge" x1="800" y1="160" x2="800" y2="196" marker-end="url(#arr)"/>
+
+          <!-- Row 3: UI layer -->
+          <rect class="box" x="40" y="198" width="600" height="156" rx="12"/>
+          <text class="t-title" x="60" y="224">Filament admin panel</text>
+          <text class="t-mono" x="620" y="224" text-anchor="end">/admin</text>
+
+          <rect class="box-soft" x="60" y="240" width="180" height="96" rx="8"/>
+          <text class="t-title" x="150" y="264" text-anchor="middle">Resources</text>
+          <text class="t-small" x="150" y="284" text-anchor="middle">Staff · Movement log</text>
+          <text class="t-small" x="150" y="300" text-anchor="middle">Units · Reasons · Users</text>
+          <text class="t-small" x="150" y="316" text-anchor="middle">forms, tables, CSV export</text>
+
+          <rect class="box-soft" x="255" y="240" width="180" height="96" rx="8" style="stroke: var(--accent)"/>
+          <text class="t-title" x="345" y="264" text-anchor="middle">MovementActions</text>
+          <text class="t-small" x="345" y="284" text-anchor="middle">Check out · Check in</text>
+          <text class="t-small" x="345" y="300" text-anchor="middle">one modal, reused on</text>
+          <text class="t-small" x="345" y="316" text-anchor="middle">dashboard, staff, log</text>
+
+          <rect class="box-soft" x="450" y="240" width="170" height="96" rx="8"/>
+          <text class="t-title" x="535" y="264" text-anchor="middle">Dashboard widgets</text>
+          <text class="t-small" x="535" y="284" text-anchor="middle">In / Out / Overdue stats</text>
+          <text class="t-small" x="535" y="300" text-anchor="middle">Currently out table</text>
+          <text class="t-small" x="535" y="316" text-anchor="middle">refresh every 30 s</text>
+
+          <rect class="box" x="680" y="198" width="240" height="156" rx="12"/>
+          <text class="t-title" x="700" y="224">Display board</text>
+          <text class="t-mono" x="900" y="224" text-anchor="end">/board</text>
+          <rect class="box-soft" x="700" y="240" width="200" height="96" rx="8"/>
+          <text class="t-title" x="800" y="264" text-anchor="middle">Livewire Board</text>
+          <text class="t-small" x="800" y="284" text-anchor="middle">every unit's active staff</text>
+          <text class="t-small" x="800" y="300" text-anchor="middle">green / red / amber dots</text>
+          <text class="t-small" x="800" y="316" text-anchor="middle">?unit=UGT for one unit</text>
+
+          <!-- Row 3 → Row 4 -->
+          <line class="edge" x1="150" y1="336" x2="150" y2="436" marker-end="url(#arr)"/>
+          <text class="t-small" x="158" y="392">authorize</text>
+          <path class="edge-accent" d="M345 336 V386 H385 V436" marker-end="url(#arrA)"/>
+          <text class="t-small" x="353" y="374">calls</text>
+          <path class="edge" d="M535 336 V386 H600 V436" marker-end="url(#arr)"/>
+          <text class="t-small" x="543" y="374">reads</text>
+          <line class="edge" x1="800" y1="336" x2="800" y2="436" marker-end="url(#arr)"/>
+          <text class="t-small" x="808" y="392">reads staff + open movements</text>
+
+          <!-- Row 4: rules and models -->
+          <rect class="box" x="60" y="438" width="180" height="78" rx="10"/>
+          <text class="t-title" x="150" y="462" text-anchor="middle">Policies</text>
+          <text class="t-small" x="150" y="482" text-anchor="middle">admin vs clerk, per</text>
+          <text class="t-small" x="150" y="498" text-anchor="middle">model and per action</text>
+
+          <rect class="box" x="270" y="438" width="230" height="78" rx="10" style="stroke: var(--accent); stroke-width: 2"/>
+          <text class="t-title" x="385" y="462" text-anchor="middle">Actions</text>
+          <text class="t-mono" x="385" y="482" text-anchor="middle">CheckOutStaff</text>
+          <text class="t-mono" x="385" y="498" text-anchor="middle">CheckInStaff</text>
+
+          <rect class="box" x="560" y="438" width="360" height="78" rx="10"/>
+          <text class="t-title" x="740" y="462" text-anchor="middle">Eloquent models</text>
+          <text class="t-mono" x="740" y="482" text-anchor="middle">Staff · Unit · Movement</text>
+          <text class="t-mono" x="740" y="498" text-anchor="middle">MovementReason · User</text>
+
+          <line class="edge-accent" x1="500" y1="477" x2="558" y2="477" marker-end="url(#arrA)"/>
+          <text class="t-small" x="529" y="418" text-anchor="middle">transaction +</text>
+          <text class="t-small" x="529" y="432" text-anchor="middle">row lock</text>
+
+          <!-- Row 4 → Row 5 -->
+          <line class="edge-accent" x1="740" y1="516" x2="740" y2="566" marker-end="url(#arrA)"/>
+          <text class="t-small" x="750" y="546">parameterised SQL</text>
+
+          <!-- Row 5: database -->
+          <rect class="box" x="40" y="568" width="880" height="60" rx="10"/>
+          <text class="t-title" x="60" y="603">Database</text>
+          <text class="t-small" x="140" y="603">SQLite by default, MySQL by .env</text>
+          <rect class="box-soft" x="380" y="583" width="72" height="30" rx="6"/>
+          <text class="t-mono" x="416" y="603" text-anchor="middle">units</text>
+          <rect class="box-soft" x="462" y="583" width="72" height="30" rx="6"/>
+          <text class="t-mono" x="498" y="603" text-anchor="middle">staff</text>
+          <rect class="box-soft" x="544" y="583" width="132" height="30" rx="6"/>
+          <text class="t-mono" x="610" y="603" text-anchor="middle">movement_reasons</text>
+          <rect class="box-soft" x="686" y="583" width="98" height="30" rx="6" style="stroke: var(--accent)"/>
+          <text class="t-mono" x="735" y="603" text-anchor="middle">movements</text>
+          <rect class="box-soft" x="794" y="583" width="72" height="30" rx="6"/>
+          <text class="t-mono" x="830" y="603" text-anchor="middle">users</text>
+        </svg>
+      </div>
+      <figcaption>Both screens sit behind the same login. The panel never writes a movement directly: every check-out and check-in goes through one of two action classes, which hold the business rules. The board and the dashboard only read, and they stay current by polling.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Core record</span>
+      <h2>The life of one movement</h2>
+    </div>
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 900 180" role="img" aria-label="A staff member in the office is checked out, which opens a movement with no in_at. If expected_back_at passes it shows as overdue. Check-in sets in_at and the staff member is back in the office.">
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="arr2A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head-accent" d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <path class="edge-accent" d="M335 70 C 335 18, 805 18, 805 66" marker-end="url(#arr2A)"/>
+          <text class="t-small" x="570" y="16" text-anchor="middle">check in (sets in_at)</text>
+
+          <rect class="st-in" x="20" y="70" width="150" height="46" rx="23"/>
+          <circle class="c-in" cx="42" cy="93" r="6"/>
+          <text class="t-title" x="102" y="98" text-anchor="middle">In office</text>
+
+          <line class="edge-accent" x1="170" y1="93" x2="258" y2="93" marker-end="url(#arr2A)"/>
+          <text class="t-small" x="214" y="84" text-anchor="middle">check out</text>
+
+          <rect class="st-out" x="260" y="70" width="150" height="46" rx="23"/>
+          <circle class="c-out" cx="282" cy="93" r="6"/>
+          <text class="t-title" x="342" y="98" text-anchor="middle">Out</text>
+
+          <line class="edge" x1="410" y1="93" x2="498" y2="93" marker-end="url(#arr2)"/>
+          <text class="t-small" x="454" y="84" text-anchor="middle">time passes</text>
+
+          <rect class="st-late" x="500" y="70" width="150" height="46" rx="23"/>
+          <circle class="c-late" cx="522" cy="93" r="6"/>
+          <text class="t-title" x="582" y="98" text-anchor="middle">Overdue</text>
+
+          <line class="edge-accent" x1="650" y1="93" x2="728" y2="93" marker-end="url(#arr2A)"/>
+          <text class="t-small" x="689" y="84" text-anchor="middle">check in</text>
+
+          <rect class="st-in" x="730" y="70" width="150" height="46" rx="23"/>
+          <circle class="c-in" cx="752" cy="93" r="6"/>
+          <text class="t-title" x="812" y="98" text-anchor="middle">Returned</text>
+
+          <text class="t-mono" x="95" y="142" text-anchor="middle">no open movement</text>
+          <text class="t-mono" x="335" y="142" text-anchor="middle">in_at is null</text>
+          <text class="t-mono" x="575" y="142" text-anchor="middle">in_at is null</text>
+          <text class="t-mono" x="575" y="160" text-anchor="middle">expected_back_at &lt; now</text>
+          <text class="t-mono" x="805" y="142" text-anchor="middle">in_at is set</text>
+        </svg>
+      </div>
+      <figcaption>"Out" is not a flag stored on the staff member. It is derived: someone is out while they have a movement with an empty <code>in_at</code>. Overdue is derived too, from <code>expected_back_at</code>, so nothing has to run on a timer to keep it correct.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Request path</span>
+      <h2>What happens when a clerk clicks Check out</h2>
+    </div>
+    <ol class="flow">
+      <li><div><strong>The modal opens with the shared form.</strong><span class="muted">Staff (only people currently in the office), reason (only active reasons), out time defaulting to now, optional expected return and note.</span><span class="where">app/Filament/Actions/MovementActions.php</span></div></li>
+      <li><div><strong>Livewire sends the form to the server.</strong><span class="muted">The request carries the session cookie and CSRF token; a guest would be sent to the login page.</span><span class="where">bootstrap/app.php · Filament panel middleware</span></div></li>
+      <li><div><strong>Filament validates the fields.</strong><span class="muted">Required fields, and the expected return must be after the out time. Errors show inline in the modal.</span></div></li>
+      <li><div><strong>CheckOutStaff applies the rule that matters.</strong><span class="muted">Inside a transaction it locks the staff row, then refuses if that person already has an open movement, so two clerks can't check out the same person at once.</span><span class="where">app/Actions/CheckOutStaff.php</span></div></li>
+      <li><div><strong>A movement row is inserted with no in_at.</strong><span class="muted">It records who checked the person out, for the audit trail.</span><span class="where">movements.checked_out_by</span></div></li>
+      <li><div><strong>The clerk sees a toast, and the screens catch up.</strong><span class="muted">The dashboard updates within 30 seconds and the wall board within 15 seconds, on their next poll.</span><span class="where">app/Filament/Widgets · app/Livewire/Board.php</span></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Data model</span>
+      <h2>Five tables</h2>
+    </div>
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 950 320" role="img" aria-label="A unit has many staff; a staff member has many movements; each movement has one reason and records which users checked it out and in.">
+          <!-- units -->
+          <rect class="box" x="20" y="40" width="180" height="120" rx="10"/>
+          <text class="t-title" x="36" y="64">units</text>
+          <line class="edge" x1="20" y1="74" x2="200" y2="74"/>
+          <text class="t-mono" x="36" y="92">id</text>
+          <text class="t-mono" x="36" y="110">code <tspan class="t-small">unique</tspan></text>
+          <text class="t-mono" x="36" y="128">name</text>
+          <text class="t-mono" x="36" y="146">sort_order</text>
+
+          <!-- staff -->
+          <rect class="box" x="240" y="40" width="210" height="192" rx="10"/>
+          <text class="t-title" x="256" y="64">staff</text>
+          <line class="edge" x1="240" y1="74" x2="450" y2="74"/>
+          <text class="t-mono" x="256" y="92">id</text>
+          <text class="t-mono" x="256" y="110">name</text>
+          <text class="t-mono" x="256" y="128">ic_number <tspan class="t-small">12 digits</tspan></text>
+          <text class="t-mono" x="256" y="146">unit_id</text>
+          <text class="t-mono" x="256" y="164">position</text>
+          <text class="t-mono" x="256" y="182">grade</text>
+          <text class="t-mono" x="256" y="200">phone</text>
+          <text class="t-mono" x="256" y="218">is_active</text>
+
+          <!-- movements -->
+          <rect class="box" x="500" y="40" width="220" height="210" rx="10" style="stroke: var(--accent); stroke-width: 2"/>
+          <text class="t-title" x="516" y="64">movements</text>
+          <line class="edge" x1="500" y1="74" x2="720" y2="74"/>
+          <text class="t-mono" x="516" y="92">id</text>
+          <text class="t-mono" x="516" y="110">staff_id</text>
+          <text class="t-mono" x="516" y="128">movement_reason_id</text>
+          <text class="t-mono" x="516" y="146">note</text>
+          <text class="t-mono" x="516" y="164">out_at</text>
+          <text class="t-mono" x="516" y="182">expected_back_at</text>
+          <rect class="row-hi" x="502" y="187" width="216" height="18"/>
+          <text class="t-mono" x="516" y="200">in_at <tspan class="t-small">null = still out</tspan></text>
+          <text class="t-mono" x="516" y="218">checked_out_by</text>
+          <text class="t-mono" x="516" y="236">checked_in_by</text>
+
+          <!-- movement_reasons -->
+          <rect class="box" x="760" y="40" width="170" height="100" rx="10"/>
+          <text class="t-title" x="776" y="64">movement_reasons</text>
+          <line class="edge" x1="760" y1="74" x2="930" y2="74"/>
+          <text class="t-mono" x="776" y="92">id</text>
+          <text class="t-mono" x="776" y="110">name <tspan class="t-small">unique</tspan></text>
+          <text class="t-mono" x="776" y="128">is_active</text>
+
+          <!-- users -->
+          <rect class="box" x="760" y="170" width="170" height="136" rx="10"/>
+          <text class="t-title" x="776" y="194">users</text>
+          <line class="edge" x1="760" y1="204" x2="930" y2="204"/>
+          <text class="t-mono" x="776" y="222">id</text>
+          <text class="t-mono" x="776" y="240">name</text>
+          <text class="t-mono" x="776" y="258">email <tspan class="t-small">unique</tspan></text>
+          <text class="t-mono" x="776" y="276">password <tspan class="t-small">hashed</tspan></text>
+          <text class="t-mono" x="776" y="294">role <tspan class="t-small">admin | clerk</tspan></text>
+
+          <!-- relations: 1 at the referenced id, n at the foreign key -->
+          <path class="edge" d="M200 88 H220 V142 H240"/>
+          <text class="t-small" x="204" y="83">1</text>
+          <text class="t-small" x="228" y="137">n</text>
+
+          <path class="edge-accent" d="M450 88 H475 V106 H500"/>
+          <text class="t-small" x="454" y="83">1</text>
+          <text class="t-small" x="488" y="101">n</text>
+
+          <path class="edge" d="M760 88 H740 V124 H720"/>
+          <text class="t-small" x="750" y="83">1</text>
+          <text class="t-small" x="724" y="119">n</text>
+
+          <path class="edge" d="M760 218 H740 V214 H720"/>
+          <path class="edge" d="M740 218 V232 H720"/>
+          <text class="t-small" x="748" y="213">1</text>
+          <text class="t-small" x="728" y="246">n</text>
+        </svg>
+      </div>
+      <figcaption>Deleting a unit or a reason that is still in use is blocked at the database (restrict), so history can't lose its labels. Reasons are switched off with <code>is_active</code> instead. Every time is stored in <code>Asia/Kuala_Lumpur</code> by default.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Policies</span>
+      <h2>Who can do what</h2>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Task</th><th class="c">Clerk</th><th class="c">Admin</th></tr></thead>
+        <tbody>
+          <tr><td>Dashboard, display board, movement log, CSV export</td><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><td>Check staff out and in</td><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><td>Add and edit staff</td><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><td>Delete staff</td><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><td>Correct or delete a recorded movement</td><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><td>Manage units, movement reasons and user accounts</td><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><td>Delete their own account</td><td class="c no">No</td><td class="c no">No</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Repository</span>
+      <h2>Where each part lives</h2>
+    </div>
+    <div class="map">
+      <dl>
+        <div class="item"><dt>app/Actions/</dt><dd>CheckOutStaff and CheckInStaff: the business rules, independent of any screen.</dd></div>
+        <div class="item"><dt>app/Models/</dt><dd>Staff, Unit, MovementReason, Movement, User, with relations and the open / overdue logic.</dd></div>
+        <div class="item"><dt>app/Policies/</dt><dd>Admin-only rules for master data; staff and movement rules for clerks.</dd></div>
+        <div class="item"><dt>app/Filament/Resources/</dt><dd>One folder per screen, split into Schemas (forms), Tables and Pages.</dd></div>
+        <div class="item"><dt>app/Filament/Actions/MovementActions.php</dt><dd>The shared Check out and Check in buttons.</dd></div>
+      </dl>
+      <dl>
+        <div class="item"><dt>app/Filament/Widgets/</dt><dd>Dashboard stats and the Currently out table.</dd></div>
+        <div class="item"><dt>app/Livewire/Board.php</dt><dd>The wall board, with its view in resources/views/livewire/board.blade.php.</dd></div>
+        <div class="item"><dt>database/migrations/ · seeders/</dt><dd>The schema as code; first admin, units and reasons; DemoSeeder for sample data.</dd></div>
+        <div class="item"><dt>tests/Feature/</dt><dd>16 tests: check-out rules, permissions, screens, CSV export, board.</dd></div>
+        <div class="item"><dt>.github/workflows/tests.yml</dt><dd>Runs the tests on PHP 8.3 and 8.4 for every push and pull request.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <footer>Source: <a href="https://github.com/abdullahzamani/attendance">github.com/abdullahzamani/attendance</a>, branch <code>main</code>. Rebuilt from the 2016 PHP project <code>projectlearning</code>.</footer>
+</div>
+</body>
+</html>

@@ -24,7 +24,13 @@ Built with **Laravel 13**, **Filament 5** (admin panel) and **Livewire** (live d
 
 ## Getting started
 
-Requirements: PHP 8.3+ (with `intl`, `pdo_sqlite` or `pdo_mysql`) and Composer. No Node.js build step is needed.
+Requirements: PHP 8.3+ with the `intl`, `mbstring`, `fileinfo`, `openssl` and `pdo_sqlite` (or
+`pdo_mysql`) extensions, and Composer. No Node.js build step is needed. Check the extensions with
+`php -m`.
+
+On Windows, the easiest way to get a suitable PHP is [Laravel Herd](https://herd.laravel.com/windows).
+The lightweight `php.new` installer ("Herd Lite") does not include `intl`, so `composer setup` fails
+with *"requires ext-intl"*; see [Windows setup](#windows-setup) below.
 
 ```sh
 git clone https://github.com/abdullahzamani/attendance.git
@@ -58,9 +64,43 @@ DB_PASSWORD=a-strong-password
 
 then `php artisan migrate --seed`.
 
+### Windows setup
+
+If `composer setup` reports that `ext-intl` is missing, your PHP was built without it. Either:
+
+- **Install [Laravel Herd](https://herd.laravel.com/windows)** (full version), reopen PowerShell, and
+  check that `php -m` lists `intl`; or
+- **Use the official PHP build:** download the *VS17 x64 Non Thread Safe* zip for PHP 8.4 from
+  [windows.php.net](https://windows.php.net/download/), extract it to `C:\php`, copy
+  `php.ini-development` to `php.ini`, and remove the `;` in front of these lines:
+
+  ```ini
+  extension_dir = "ext"
+  extension=curl
+  extension=fileinfo
+  extension=intl
+  extension=mbstring
+  extension=openssl
+  extension=pdo_sqlite
+  extension=sqlite3
+  extension=zip
+  ```
+
+  Then put `C:\php` at the **top** of your user `Path` environment variable, reopen PowerShell and
+  run `php -m` to confirm `intl` is listed.
+
+Then run `composer setup` again in the project folder.
+
 ### Time zone
 
 Times are stored and shown in `APP_TIMEZONE` (default `Asia/Kuala_Lumpur`).
+
+## Architecture
+
+[`docs/architecture.html`](docs/architecture.html) is a one-page visual overview: how the screens,
+login gate, business rules and database connect, the life of a movement, the data model, who can
+do what, and where each part lives. Open it in any browser. Update it whenever the architecture
+changes, so it stays a reliable map of the system.
 
 ## Project layout
 
