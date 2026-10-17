@@ -89,6 +89,19 @@ If `composer setup` reports that `ext-intl` is missing, your PHP was built witho
   Then put `C:\php` at the **top** of your user `Path` environment variable, reopen PowerShell and
   run `php -m` to confirm `intl` is listed.
 
+  The official build has no list of trusted certificate authorities, so HTTPS downloads (including
+  the Composer installer) fail with *"certificate verify failed"*. Download one and point PHP at it:
+
+  ```powershell
+  Invoke-WebRequest https://curl.se/ca/cacert.pem -OutFile C:\php\cacert.pem
+  ```
+
+  and in `php.ini` set `curl.cainfo = "C:\php\cacert.pem"` and `openssl.cafile = "C:\php\cacert.pem"`
+  (remove the leading `;` on both lines).
+
+  Make sure you download the **Windows binary zip**, not the source code: `C:\php` must contain
+  `php.exe`.
+
 If `php --ini` still shows a path containing `herd-lite`, Windows is still finding the old PHP
 first. Open *Edit environment variables for your account* → **Path**, delete the
 `...\.config\herd-lite\bin` entry, then open a new PowerShell window. (With the official PHP
