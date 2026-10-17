@@ -99,6 +99,16 @@ If `composer setup` reports that `ext-intl` is missing, your PHP was built witho
   and in `php.ini` set `curl.cainfo = "C:\php\cacert.pem"` and `openssl.cafile = "C:\php\cacert.pem"`
   (remove the leading `;` on both lines).
 
+  If HTTPS still fails, antivirus web protection (e.g. Norton) is probably inspecting HTTPS with its
+  own certificate. Append the certificates Windows trusts to PHP's list:
+
+  ```powershell
+  $pem = Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | ForEach-Object {
+    "-----BEGIN CERTIFICATE-----`r`n" + [Convert]::ToBase64String($_.RawData, 'InsertLineBreaks') + "`r`n-----END CERTIFICATE-----"
+  }
+  Add-Content C:\php\cacert.pem ("`r`n" + ($pem -join "`r`n"))
+  ```
+
   Make sure you download the **Windows binary zip**, not the source code: `C:\php` must contain
   `php.exe`.
 
