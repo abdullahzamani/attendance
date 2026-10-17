@@ -44,3 +44,43 @@ jobs:
 
       - name: Execute tests
         run: php artisan test
+
+  docker:
+    runs-on: ubuntu-latest
+
+    name: Docker image
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: |
+          cp .env.docker.example .env.docker
+          sed -i 's|^APP_URL=.*|APP_URL=http://localhost:8080|' .env.docker
+          docker compose build
+        env:
+          COMPOSE_PROJECT_NAME: attendance-ci
+
+      - name: Start the stack
+        run: docker compose up -d --no-build --wait --wait-timeout 180
+        env:
+          COMPOSE_PROJECT_NAME: attendance-ci
+
+      - name: Check the app responds
+        run: |
+          curl -fsS http://localhost:8080/up > /dev/null
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://localhost:8080/admin/login
+          docker compose exec -T -u www-data app php -m | grep -q intl
+          docker compose exec -T -u www-data app php artisan app:board-url
+          docker compose exec -T -u www-data scheduler php artisan app:backup
+        env:
+          COMPOSE_PROJECT_NAME: attendance-ci
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+        env:
+          COMPOSE_PROJECT_NAME: attendance-ci

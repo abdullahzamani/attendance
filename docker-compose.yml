@@ -1,0 +1,34 @@
+# Office deployment: the web app plus a scheduler for daily backups, sharing one data volume.
+# Settings come from .env.docker (copy .env.docker.example). See docs/deployment.md.
+
+services:
+  app:
+    build: .
+    image: attendance:latest
+    restart: unless-stopped
+    env_file: .env.docker
+    ports:
+      - "8080:80"
+    volumes:
+      - attendance-data:/var/www/html/storage
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost/up') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  scheduler:
+    build: .
+    image: attendance:latest
+    restart: unless-stopped
+    env_file: .env.docker
+    command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - attendance-data:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  attendance-data:

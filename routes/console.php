@@ -1,8 +1,7 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+// Daily database backup, kept for 30 days. Runs when `php artisan schedule:work`
+// (the "scheduler" service in docker-compose.yml) is running.
+Schedule::command('app:backup --keep=30')->dailyAt('01:00');

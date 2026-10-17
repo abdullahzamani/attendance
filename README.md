@@ -14,7 +14,9 @@ Built with **Laravel 13**, **Filament 5** (admin panel) and **Livewire** (live d
 - **Dashboard.** Live counts (in office, out now, overdue, check-outs today) and the list of
   everyone currently out, refreshed every 30 seconds.
 - **Display board** (`/board`). A wall-screen view of every unit's staff with green/red/amber
-  status, refreshed every 15 seconds. Use `/board?unit=UGT` to show one unit.
+  status, refreshed every 15 seconds. Use `/board?unit=UGT` to show one unit. A TV can open it
+  without signing in using the link from `php artisan app:board-url` (needs `BOARD_TOKEN`).
+- **Daily backups** with `php artisan app:backup`, scheduled at 01:00 when the scheduler runs.
 - **Movement log.** Today / This month / This year / All tabs replace the old daily, monthly and
   yearly reports. You can filter by unit, reason, staff, status and date range, and
   **Export CSV** downloads exactly what the table shows.
@@ -124,6 +126,12 @@ Then run `composer setup` again in the project folder.
 
 Times are stored and shown in `APP_TIMEZONE` (default `Asia/Kuala_Lumpur`).
 
+## Running it for the whole office
+
+To run it on an office server so every PC, phone and the wall TV can reach it, follow
+[`docs/deployment.md`](docs/deployment.md). It uses Docker (`Dockerfile`, `docker-compose.yml`) and
+covers the TV link, daily backups, restoring and updating.
+
 ## Architecture
 
 [`docs/architecture.html`](docs/architecture.html) is a one-page visual overview: how the screens,
@@ -144,7 +152,10 @@ changes, so it stays a reliable map of the system.
 | `app/Policies` | Who may do what (admin vs clerk) |
 | `database/migrations` | The schema, as code |
 | `database/seeders` | `DatabaseSeeder` (units, reasons, first admin) and `DemoSeeder` (sample data) |
-| `tests/Feature` | Workflow, permission and screen tests |
+| `app/Console/Commands` | `app:backup`, `app:board-url`, `app:admin` |
+| `app/Http/Middleware/AuthorizeBoard.php` | Lets a wall TV with the board link see `/board` without signing in |
+| `Dockerfile`, `docker-compose.yml`, `docker/` | Production image and office deployment |
+| `tests/Feature` | Workflow, permission, screen and deployment tests |
 
 ## Data model
 

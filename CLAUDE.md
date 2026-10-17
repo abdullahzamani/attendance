@@ -11,6 +11,11 @@ See `README.md` for setup and `docs/architecture.html` for the architecture over
   whose policy method is missing.
 - A staff member is "out" when they have a movement with `in_at` null. Don't add a stored status flag.
 - Run `php artisan test` and `vendor/bin/pint` before committing.
+- `DatabaseSeeder` must stay safe to re-run: the Docker image runs it on every start, and it only
+  seeds when no users exist.
+- Production runs in Docker (`Dockerfile`, `docker-compose.yml`, `docker/entrypoint.sh`); the
+  operator guide is `docs/deployment.md`. Keep that guide in step with any change to setup,
+  configuration, commands or backups.
 
 ## Keep the architecture page current
 

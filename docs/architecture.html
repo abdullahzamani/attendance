@@ -157,6 +157,7 @@
       <li><b>Livewire</b> 4 board</li>
       <li><b>SQLite</b> or MySQL</li>
       <li><b>PHPUnit</b> + GitHub Actions</li>
+      <li><b>Docker</b> office server</li>
     </ul>
     <div class="legend" aria-label="Status colours used throughout">
       <span><i class="dot" style="background:var(--in)"></i>In office</span>
@@ -188,7 +189,7 @@
           <text class="t-small" x="390" y="62" text-anchor="middle">records movements</text>
           <rect class="box" x="700" y="20" width="200" height="54" rx="10"/>
           <text class="t-title" x="800" y="44" text-anchor="middle">Wall TV</text>
-          <text class="t-small" x="800" y="62" text-anchor="middle">signed-in browser</text>
+          <text class="t-small" x="800" y="62" text-anchor="middle">opens the board link</text>
 
           <line class="edge" x1="150" y1="74" x2="150" y2="116" marker-end="url(#arr)"/>
           <line class="edge" x1="390" y1="74" x2="390" y2="116" marker-end="url(#arr)"/>
@@ -197,7 +198,7 @@
 
           <!-- Row 2: gate -->
           <rect class="gate" x="40" y="118" width="880" height="42" rx="8"/>
-          <text x="480" y="144" text-anchor="middle"><tspan class="t-accent">Login gate</tspan>  ·  session login at /admin/login  ·  CSRF on every action  ·  guests are redirected</text>
+          <text x="480" y="144" text-anchor="middle"><tspan class="t-accent">Login gate</tspan>  ·  staff sign in at /admin/login  ·  the TV holds a board token  ·  CSRF on every action</text>
 
           <line class="edge" x1="340" y1="160" x2="340" y2="196" marker-end="url(#arr)"/>
           <line class="edge" x1="800" y1="160" x2="800" y2="196" marker-end="url(#arr)"/>
@@ -262,7 +263,7 @@
 
           <line class="edge-accent" x1="500" y1="477" x2="558" y2="477" marker-end="url(#arrA)"/>
           <text class="t-small" x="529" y="418" text-anchor="middle">transaction +</text>
-          <text class="t-small" x="529" y="432" text-anchor="middle">row lock</text>
+          <text class="t-small" x="529" y="432" text-anchor="middle">write lock</text>
 
           <!-- Row 4 → Row 5 -->
           <line class="edge-accent" x1="740" y1="516" x2="740" y2="566" marker-end="url(#arrA)"/>
@@ -284,7 +285,7 @@
           <text class="t-mono" x="830" y="603" text-anchor="middle">users</text>
         </svg>
       </div>
-      <figcaption>Both screens sit behind the same login. The panel never writes a movement directly: every check-out and check-in goes through one of two action classes, which hold the business rules. The board and the dashboard only read, and they stay current by polling.</figcaption>
+      <figcaption>Both screens sit behind the login gate; the wall TV gets through with the board token link instead of a password, and only to the board. The panel never writes a movement directly: every check-out and check-in goes through one of two action classes, which hold the business rules. The board and the dashboard only read, and they stay current by polling.</figcaption>
     </figure>
   </section>
 
@@ -348,7 +349,7 @@
       <li><div><strong>The modal opens with the shared form.</strong><span class="muted">Staff (only people currently in the office), reason (only active reasons), out time defaulting to now, optional expected return and note.</span><span class="where">app/Filament/Actions/MovementActions.php</span></div></li>
       <li><div><strong>Livewire sends the form to the server.</strong><span class="muted">The request carries the session cookie and CSRF token; a guest would be sent to the login page.</span><span class="where">bootstrap/app.php · Filament panel middleware</span></div></li>
       <li><div><strong>Filament validates the fields.</strong><span class="muted">Required fields, and the expected return must be after the out time. Errors show inline in the modal.</span></div></li>
-      <li><div><strong>CheckOutStaff applies the rule that matters.</strong><span class="muted">Inside a transaction it locks the staff row, then refuses if that person already has an open movement, so two clerks can't check out the same person at once.</span><span class="where">app/Actions/CheckOutStaff.php</span></div></li>
+      <li><div><strong>CheckOutStaff applies the rule that matters.</strong><span class="muted">Inside a transaction that takes the database write lock first (the staff row lock on MySQL), it refuses if that person already has an open movement, so two clerks can't check out the same person at once.</span><span class="where">app/Actions/CheckOutStaff.php</span></div></li>
       <li><div><strong>A movement row is inserted with no in_at.</strong><span class="muted">It records who checked the person out, for the audit trail.</span><span class="where">movements.checked_out_by</span></div></li>
       <li><div><strong>The clerk sees a toast, and the screens catch up.</strong><span class="muted">The dashboard updates within 30 seconds and the wall board within 15 seconds, on their next poll.</span><span class="where">app/Filament/Widgets · app/Livewire/Board.php</span></div></li>
     </ol>
@@ -459,6 +460,71 @@
         </tbody>
       </table>
     </div>
+    <p class="muted">A wall TV holding the board link can open the display board and nothing else. Changing <code>BOARD_TOKEN</code> signs out every screen using the old link.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Deployment</span>
+      <h2>Running it for the whole office</h2>
+    </div>
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 960 330" role="img" aria-label="On the office network, staff PCs and phones and the wall TV reach the office server on port 8080. Docker runs two containers from one image: app serves the website and migrates the database on start, scheduler takes a backup every night. Both use one data volume holding the database, backups, logs and keys.">
+          <defs>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="arr3A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head-accent" d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <rect class="gate" x="20" y="16" width="920" height="300" rx="14"/>
+          <text class="t-accent" x="40" y="42">Office network only</text>
+          <text class="t-small" x="190" y="42">port 8080 is not opened on the router</text>
+
+          <rect class="box" x="44" y="76" width="200" height="56" rx="10"/>
+          <text class="t-title" x="144" y="100" text-anchor="middle">Staff PCs and phones</text>
+          <text class="t-small" x="144" y="118" text-anchor="middle">clerks and admins sign in</text>
+
+          <rect class="box" x="44" y="196" width="200" height="56" rx="10"/>
+          <text class="t-title" x="144" y="220" text-anchor="middle">Wall TV</text>
+          <text class="t-small" x="144" y="238" text-anchor="middle">board link from app:board-url</text>
+
+          <rect class="box" x="300" y="56" width="620" height="240" rx="12"/>
+          <text class="t-title" x="320" y="82">Office server</text>
+          <text class="t-small" x="420" y="82">Docker Compose, restarts on reboot</text>
+          <text class="t-mono" x="900" y="82" text-anchor="end">http://server-ip:8080</text>
+
+          <line class="edge-accent" x1="244" y1="104" x2="330" y2="134" marker-end="url(#arr3A)"/>
+          <text class="t-small" x="262" y="106">HTTP</text>
+          <line class="edge-poll" x1="244" y1="224" x2="330" y2="160" marker-end="url(#arr3)"/>
+          <text class="t-small" x="256" y="232">every 15 s</text>
+
+          <rect class="box-soft" x="332" y="100" width="250" height="84" rx="8" style="stroke: var(--accent)"/>
+          <text class="t-title" x="348" y="124">app</text>
+          <text class="t-small" x="348" y="144">Apache + PHP 8.4, serves the website</text>
+          <text class="t-small" x="348" y="162">on start: migrate, seed if new, cache</text>
+
+          <rect class="box-soft" x="332" y="206" width="250" height="70" rx="8"/>
+          <text class="t-title" x="348" y="230">scheduler</text>
+          <text class="t-small" x="348" y="250">app:backup every night at 01:00</text>
+          <text class="t-small" x="348" y="266">keeps the newest 30</text>
+
+          <rect class="box" x="650" y="100" width="250" height="176" rx="8"/>
+          <text class="t-title" x="666" y="124">attendance-data volume</text>
+          <text class="t-mono" x="666" y="148">app/database.sqlite</text>
+          <text class="t-mono" x="666" y="168">app/backups/</text>
+          <text class="t-mono" x="666" y="188">logs/</text>
+          <text class="t-mono" x="666" y="208">app/.app_key</text>
+          <text class="t-mono" x="666" y="228">app/.board_token</text>
+          <text class="t-small" x="666" y="256">survives restarts and updates</text>
+
+          <line class="edge-accent" x1="582" y1="142" x2="648" y2="142" marker-end="url(#arr3A)"/>
+          <text class="t-small" x="615" y="134" text-anchor="middle">reads,</text>
+          <text class="t-small" x="615" y="160" text-anchor="middle">writes</text>
+          <line class="edge" x1="582" y1="241" x2="648" y2="241" marker-end="url(#arr3)"/>
+          <text class="t-small" x="615" y="233" text-anchor="middle">copies</text>
+        </svg>
+      </div>
+      <figcaption>Both containers run from the same image and share one volume, so updating is <code>git pull</code> and <code>docker compose up -d --build</code>: the new version migrates the database on start and the data stays. Step-by-step setup, the TV link, backups and restoring are in <code>docs/deployment.md</code>.</figcaption>
+    </figure>
   </section>
 
   <section>
@@ -473,13 +539,17 @@
         <div class="item"><dt>app/Policies/</dt><dd>Admin-only rules for master data; staff and movement rules for clerks.</dd></div>
         <div class="item"><dt>app/Filament/Resources/</dt><dd>One folder per screen, split into Schemas (forms), Tables and Pages.</dd></div>
         <div class="item"><dt>app/Filament/Actions/MovementActions.php</dt><dd>The shared Check out and Check in buttons.</dd></div>
+        <div class="item"><dt>app/Console/Commands/</dt><dd>app:backup, app:board-url (the TV link) and app:admin (create or reset an administrator).</dd></div>
+        <div class="item"><dt>app/Http/Middleware/AuthorizeBoard.php</dt><dd>Lets a signed-in user, or a screen holding the board token, see the board.</dd></div>
       </dl>
       <dl>
         <div class="item"><dt>app/Filament/Widgets/</dt><dd>Dashboard stats and the Currently out table.</dd></div>
         <div class="item"><dt>app/Livewire/Board.php</dt><dd>The wall board, with its view in resources/views/livewire/board.blade.php.</dd></div>
         <div class="item"><dt>database/migrations/ · seeders/</dt><dd>The schema as code; first admin, units and reasons; DemoSeeder for sample data.</dd></div>
-        <div class="item"><dt>tests/Feature/</dt><dd>16 tests: check-out rules, permissions, screens, CSV export, board.</dd></div>
-        <div class="item"><dt>.github/workflows/tests.yml</dt><dd>Runs the tests on PHP 8.3 and 8.4 for every push and pull request.</dd></div>
+        <div class="item"><dt>Dockerfile · docker-compose.yml · docker/</dt><dd>The production image, the app and scheduler services, and the start-up script.</dd></div>
+        <div class="item"><dt>docs/deployment.md</dt><dd>Office server guide: install, TV link, backups, restore, updates.</dd></div>
+        <div class="item"><dt>tests/Feature/</dt><dd>28 tests: check-out rules, permissions, screens, CSV export, board, TV link, backups, admin command.</dd></div>
+        <div class="item"><dt>.github/workflows/tests.yml</dt><dd>Runs the tests on PHP 8.3 and 8.4, and builds and starts the Docker image, on every push and pull request.</dd></div>
       </dl>
     </div>
   </section>

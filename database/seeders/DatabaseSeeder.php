@@ -15,6 +15,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Only seed a brand-new installation. Re-running it (the Docker image does on every start)
+        // must not bring back the default admin or units and reasons that were renamed or removed.
+        if (User::query()->exists()) {
+            $this->command?->info('Users already exist; skipping initial data.');
+
+            return;
+        }
+
         // Units carried over from the old system; rename them in the admin panel.
         foreach (['BPKSP', 'UGT', 'UKNP', 'UKSP'] as $order => $code) {
             Unit::firstOrCreate(['code' => $code], ['name' => $code, 'sort_order' => $order]);
